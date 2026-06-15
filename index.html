@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DES Simulator — Data Encryption Standard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-des">DES</span>
+      <span class="logo-sub">Simulator</span>
+    </div>
+    <div class="header-badge">Data Encryption Standard · 64-bit · 16 Rounds</div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- INPUT SECTION -->
+  <section class="section-input" id="inputSection">
+    <div class="section-label">01 — Input</div>
+
+    <!-- Mode Toggle -->
+    <div class="mode-row">
+      <button class="mode-btn active" id="btnEncrypt" onclick="setMode('encrypt')">
+        <span class="mode-icon">🔒</span> Enkripsi
+      </button>
+      <button class="mode-btn" id="btnDecrypt" onclick="setMode('decrypt')">
+        <span class="mode-icon">🔓</span> Dekripsi
+      </button>
+    </div>
+
+    <!-- Format Toggle -->
+    <div class="format-row">
+      <span class="format-label">Format Input:</span>
+      <div class="format-toggle">
+        <button class="fmt-btn active" id="fmtBin" onclick="setFormat('bin')">Biner</button>
+        <button class="fmt-btn" id="fmtHex" onclick="setFormat('hex')">Heksadesimal</button>
+      </div>
+    </div>
+
+    <!-- Input Fields -->
+    <div class="input-grid">
+      <div class="field-group">
+        <label class="field-label">
+          Plaintext / Ciphertext <span class="bit-badge" id="ptBits">0 bit</span>
+        </label>
+        <input type="text" class="field-input mono" id="inputText"
+          placeholder="0000000000000000  (16 hex digit = 64 bit)"
+          oninput="updateBitCount('inputText','ptBits')"
+          autocomplete="off" spellcheck="false">
+        <div class="field-hint" id="ptHint"></div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">
+          Kunci 64-bit <span class="bit-badge" id="keyBits">0 bit</span>
+        </label>
+        <input type="text" class="field-input mono" id="inputKey"
+          placeholder="133457799BBCDFF1  (16 hex digit = 64 bit)"
+          oninput="updateBitCount('inputKey','keyBits')"
+          autocomplete="off" spellcheck="false">
+        <div class="field-hint" id="keyHint"></div>
+      </div>
+    </div>
+
+    <!-- Preset -->
+    <div class="preset-row">
+      <span class="format-label">Contoh nilai:</span>
+      <button class="preset-btn" onclick="loadPreset()">Load Contoh DES Klasik</button>
+      <button class="preset-btn" onclick="loadPreset2()">Contoh 2</button>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row">
+      <button class="btn-run" id="btnRun" onclick="runProcess()">
+        <span id="btnRunText">Jalankan Enkripsi</span>
+        <span class="btn-arrow">→</span>
+      </button>
+      <button class="btn-reset" onclick="resetAll()">Reset</button>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+  </section>
+
+  <!-- RESULT BANNER -->
+  <section class="section-result hidden" id="resultSection">
+    <div class="result-inner">
+      <div class="result-row">
+        <div class="result-item">
+          <div class="result-label">Input (Hex)</div>
+          <div class="result-val mono" id="resInputHex">—</div>
+        </div>
+        <div class="result-arrow">→</div>
+        <div class="result-item highlight">
+          <div class="result-label" id="resOutputLabel">Ciphertext (Hex)</div>
+          <div class="result-val mono large" id="resOutputHex">—</div>
+        </div>
+      </div>
+      <div class="result-bins">
+        <div class="bin-row">
+          <span class="bin-label">Biner Input:</span>
+          <span class="mono small" id="resInputBin">—</span>
+        </div>
+        <div class="bin-row">
+          <span class="bin-label" id="resBinLabel">Biner Output:</span>
+          <span class="mono small" id="resOutputBin">—</span>
+        </div>
+      </div>
+      <!-- Round-trip test -->
+      <div class="roundtrip-row">
+        <button class="btn-roundtrip" onclick="doRoundTrip()">↩ Uji Round-Trip (Enkripsi ulang hasil dekripsi)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEPS NAV -->
+  <nav class="steps-nav hidden" id="stepsNav">
+    <button class="nav-btn active" onclick="showTab('tabKeySchedule')">Key Schedule</button>
+    <button class="nav-btn" onclick="showTab('tabIP')">IP & L0R0</button>
+    <button class="nav-btn" onclick="showTab('tabRounds')">16 Rounds</button>
+    <button class="nav-btn" onclick="showTab('tabSBox')">S-Box Detail</button>
+    <button class="nav-btn" onclick="showTab('tabFinal')">Output Final</button>
+  </nav>
+
+  <!-- ═══ TAB: KEY SCHEDULE ═══ -->
+  <section class="tab-panel" id="tabKeySchedule">
+    <div class="panel-header">
+      <div class="panel-title">🔑 Key Schedule — Pembangkitan 16 Subkunci</div>
+      <div class="panel-desc">PC-1 mereduksi kunci 64-bit → 56-bit, dibagi C₀/D₀ masing-masing 28-bit, lalu digeser (Left Shift) dan dikompresi PC-2 → 48-bit per round.</div>
+    </div>
+
+    <!-- PC-1 -->
+    <div class="step-block">
+      <div class="step-title">Langkah 1 — PC-1 Permutation (64 → 56 bit)</div>
+      <div class="step-desc">Kunci 64-bit dipermutasi sesuai tabel PC-1, menghasilkan 56-bit (bit paritas dibuang).</div>
+      <div class="bit-display-wrap">
+        <div class="bit-label">Kunci 64-bit (Input)</div>
+        <div class="bit-row" id="ks-key64"></div>
+        <div class="bit-label mt">Setelah PC-1 (56-bit)</div>
+        <div class="bit-row" id="ks-pc1out"></div>
+      </div>
+    </div>
+
+    <!-- C0 D0 -->
+    <div class="step-block">
+      <div class="step-title">Langkah 2 — Pembagian C₀ dan D₀</div>
+      <div class="cd-split">
+        <div class="cd-half">
+          <div class="cd-label">C₀ (28-bit kiri)</div>
+          <div class="bit-row small" id="ks-C0"></div>
+        </div>
+        <div class="cd-half">
+          <div class="cd-label">D₀ (28-bit kanan)</div>
+          <div class="bit-row small" id="ks-D0"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subkey table -->
+    <div class="step-block">
+      <div class="step-title">Langkah 3 — Left Shift & PC-2 → K₁ hingga K₁₆</div>
+      <div class="ks-table-wrap">
+        <table class="ks-table" id="ksTable">
+          <thead>
+            <tr>
+              <th>Round</th>
+              <th>LS</th>
+              <th>Cᵢ (28-bit)</th>
+              <th>Dᵢ (28-bit)</th>
+              <th>Subkunci Kᵢ (48-bit)</th>
+              <th>Hex</th>
+            </tr>
+          </thead>
+          <tbody id="ksTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TAB: IP ═══ -->
+  <section class="tab-panel hidden" id="tabIP">
+    <div class="panel-header">
+      <div class="panel-title">🔀 Initial Permutation (IP)</div>
+      <div class="panel-desc">Plaintext 64-bit dipermutasi sesuai tabel IP untuk menghasilkan L₀ (32-bit kiri) dan R₀ (32-bit kanan) sebagai input putaran pertama.</div>
+    </div>
+    <div class="step-block">
+      <div class="step-title">Input Plaintext (64-bit)</div>
+      <div class="bit-row" id="ip-input"></div>
+    </div>
+    <div class="step-block">
+      <div class="step-title">Setelah IP (64-bit)</div>
+      <div class="bit-row" id="ip-out"></div>
+    </div>
+    <div class="step-block">
+      <div class="cd-split">
+        <div class="cd-half">
+          <div class="cd-label">L₀ (bit 1–32)</div>
+          <div class="bit-row small" id="ip-L0"></div>
+          <div class="mono-val" id="ip-L0hex"></div>
+        </div>
+        <div class="cd-half">
+          <div class="cd-label">R₀ (bit 33–64)</div>
+          <div class="bit-row small" id="ip-R0"></div>
+          <div class="mono-val" id="ip-R0hex"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TAB: ROUNDS ═══ -->
+  <section class="tab-panel hidden" id="tabRounds">
+    <div class="panel-header">
+      <div class="panel-title">⚙️ 16 Putaran Feistel</div>
+      <div class="panel-desc">Setiap putaran: E-Expansion (32→48), XOR dengan Kᵢ, S-Box (48→32), P-Permutation, lalu swap L dan R.</div>
+    </div>
+    <div class="round-filter">
+      <span class="format-label">Tampilkan round:</span>
+      <div class="round-btns" id="roundBtns"></div>
+    </div>
+    <div id="roundDetail"></div>
+  </section>
+
+  <!-- ═══ TAB: SBOX ═══ -->
+  <section class="tab-panel hidden" id="tabSBox">
+    <div class="panel-header">
+      <div class="panel-title">📊 Visualisasi S-Box</div>
+      <div class="panel-desc">Pilih round untuk melihat proses lookup ke-8 S-Box: input 6-bit, baris (bit 1&6), kolom (bit 2–5), nilai output 4-bit.</div>
+    </div>
+    <div class="sbox-round-select">
+      <label class="format-label">Pilih Round:</label>
+      <select id="sboxRoundSel" onchange="renderSBoxDetail()" class="sel-input"></select>
+    </div>
+    <div id="sboxDetail"></div>
+    <!-- Static S-Box Tables -->
+    <div class="step-block">
+      <div class="step-title">Tabel S-Box Referensi (S1–S8)</div>
+      <div id="sboxTables"></div>
+    </div>
+  </section>
+
+  <!-- ═══ TAB: FINAL ═══ -->
+  <section class="tab-panel hidden" id="tabFinal">
+    <div class="panel-header">
+      <div class="panel-title">🏁 Output Final — IP⁻¹</div>
+      <div class="panel-desc">Setelah 16 round, R₁₆L₁₆ digabung lalu dipermutasi dengan IP⁻¹ menghasilkan ciphertext 64-bit.</div>
+    </div>
+    <div class="step-block">
+      <div class="step-title">L₁₆ dan R₁₆ (setelah round 16)</div>
+      <div class="cd-split">
+        <div class="cd-half">
+          <div class="cd-label">L₁₆</div>
+          <div class="bit-row small" id="fin-L16"></div>
+        </div>
+        <div class="cd-half">
+          <div class="cd-label">R₁₆</div>
+          <div class="bit-row small" id="fin-R16"></div>
+        </div>
+      </div>
+    </div>
+    <div class="step-block">
+      <div class="step-title">Pre-output: R₁₆ ‖ L₁₆ (swap sebelum IP⁻¹)</div>
+      <div class="bit-row" id="fin-preout"></div>
+    </div>
+    <div class="step-block">
+      <div class="step-title">Setelah IP⁻¹ → Ciphertext Final (64-bit)</div>
+      <div class="bit-row highlight-row" id="fin-cipher"></div>
+      <div class="final-hex-row">
+        <span class="format-label">Hex:</span>
+        <span class="final-hex mono" id="fin-cipherHex"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <span>DES Simulator — Implementasi dari Scratch, tanpa library kriptografi.</span>
+    <span>Mata Kuliah Kriptografi · Semester Genap 2025/2026</span>
+  </div>
+</footer>
+
+<script src="des.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
